@@ -109,16 +109,12 @@ def search_venues():
       today = datetime.datetime.utcnow()
       count = 0
       show_list = Show.query.filter_by(venue_id=v.id)
-      if len(show_list) != 0:
-        if len(show_list) != 1:
+      if show_list.count() != 0:
+        if show_list.count() >= 1:
           for show in show_list:
             showtime = datetime.datetime.fromisoformat(show.start_time)
             if showtime >= today:
               count += 1
-        else:
-          showtime = datetime.datetime.fromisoformat(show.start_time)
-          if showtime >= today:
-            count += 1
       else:
         count = 0
       each['num_upcoming_shows'] = count
@@ -276,15 +272,11 @@ def search_artists():
       count = 0
       show_list = Show.query.filter_by(venue_id=a.id)
       if show_list.count() != 0:
-        if show_list.count() != 1:
+        if show_list.count() >= 1:
           for show in show_list:
             showtime = datetime.datetime.fromisoformat(show.start_time)
             if showtime >= today:
               count += 1
-        else:
-          showtime = datetime.datetime.fromisoformat(show.start_time)
-          if showtime >= today:
-            count += 1
       else:
         count = 0
       each['num_upcoming_shows'] = count
