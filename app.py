@@ -24,13 +24,13 @@ moment = Moment(app)
 app.config.from_object('config')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
-from models import Artist, Venue, Show
+
 # TODO: connect to a local postgresql database
 migrate = Migrate(app, db)
 #----------------------------------------------------------------------------#
 # Models.
 #----------------------------------------------------------------------------#
-
+from models import Artist, Venue, Show
 
 #----------------------------------------------------------------------------#
 # Filters.
