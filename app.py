@@ -24,14 +24,14 @@ moment = Moment(app)
 app.config.from_object('config')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
-
+from models import Artist, Venue, Show
 # TODO: connect to a local postgresql database
 migrate = Migrate(app, db)
 #----------------------------------------------------------------------------#
 # Models.
 #----------------------------------------------------------------------------#
 
-from models import Artist, Venue, Show
+
 #----------------------------------------------------------------------------#
 # Filters.
 #----------------------------------------------------------------------------#
@@ -62,39 +62,36 @@ def index():
 def venues():
   # TODO: replace with real venues data.
   data = []
-  venues = Venue.query.all()
-  for venue in venues:
+  distinct_city = db.session.query(Venue.id, Venue.name, Venue.city, Venue.state).distinct(Venue.city)
+  for id, name, city, state in distinct_city:
     each_city = {}
-    each_city['city'] = venue.city
-    each_city['state'] = venue.state
+    each_city['city'] = city
+    each_city['state'] = state
     thevenues = []
     each_venue_in_city = {}
-    city_count = Venue.query.filter_by(city=venue.city).count()
+    city_count = Venue.query.filter_by(city=city).count()
     for i in range(city_count):
-      each_venue_in_city['id'] = venue.id
-      each_venue_in_city['name'] = venue.name
+      each_venue_in_city['id'] = id
+      each_venue_in_city['name'] = name
       #       num_upcoming_shows should be aggregated based on number of upcoming shows per venue.
       today = datetime.datetime.utcnow()
       count = 0
-      shows_list = Show.query.filter_by(venue_id=venue.id)
-      if len(shows_list) != 0:
-        if len(shows_list) != 1:
+      shows_list = Show.query.filter_by(venue_id=id)
+      if shows_list.count() != 0:
+        if shows_list.count() >= 1:
           for show in shows_list:
             showtime = datetime.datetime.fromisoformat(show.start_time)
             if showtime >= today:
               count += 1
-        else:
-          showtime = datetime.datetime.fromisoformat(show.start_time)
-          if showtime >= today:
-            count += 1
       else:
         count = 0
       each_venue_in_city['num_upcoming_shows'] = count
       thevenues.append(each_venue_in_city)
     each_city['venues'] = thevenues
     data.append(each_city)
+  newlist  = sorted(data, key=lambda d: d['city'], reverse=True)
   
-  return render_template('pages/venues.html', areas=data);
+  return render_template('pages/venues.html', areas=newlist)
 
 @app.route('/venues/search', methods=['POST'])
 def search_venues():
@@ -138,7 +135,7 @@ def show_venue(venue_id):
   thevenue = {}
   thevenue['id'] = current_venue.id
   thevenue['name'] = current_venue.name
-  thevenue['genres'] = current_venue.genres
+  thevenue['genres'] = current_venue.genres.replace('{', '').replace('}', '').split(',')
   thevenue['address'] = current_venue.address
   thevenue['city'] = current_venue.city
   thevenue['state'] = current_venue.state
@@ -152,13 +149,13 @@ def show_venue(venue_id):
   show_list = Show.query.filter_by(venue_id=current_venue.id)
   thepast_shows = []
   thecoming_shows = []
-  if len(show_list) != 0:
-    if len(show_list) != 1:      
+  if show_list.count() != 0:
+    if show_list.count() >= 1:      
       for show in show_list:
         showtime = datetime.datetime.fromisoformat(show.start_time)
         if showtime < today:
           past_show_details = {}
-          the_artist = Artist.query.filter_by(id=show.artist_id)
+          the_artist = Artist.query.get(show.artist_id)
           past_show_details['artist_id'] = the_artist.id
           past_show_details['artist_name'] = the_artist.name
           past_show_details['artist_image_link'] = the_artist.image_link
@@ -166,30 +163,12 @@ def show_venue(venue_id):
           thepast_shows.append(past_show_details)
         elif showtime >= today:
           coming_show_details = {}
-          the_artist = Artist.query.filter_by(id=show.artist_id)
+          the_artist = Artist.query.get(show.artist_id)
           coming_show_details['artist_id'] = the_artist.id
           coming_show_details['artist_name'] = the_artist.name
           coming_show_details['artist_image_link'] = the_artist.image_link
           coming_show_details['start_time'] = show.start_time
-          thecoming_shows.append(past_show_details)
-    else:
-      showtime = datetime.datetime.fromisoformat(show.start_time)
-      if showtime < today:
-        past_show_details = {}
-        the_artist = Artist.query.filter_by(id=show.artist_id)
-        past_show_details['artist_id'] = the_artist.id
-        past_show_details['artist_name'] = the_artist.name
-        past_show_details['artist_image_link'] = the_artist.image_link
-        past_show_details['start_time'] = show.start_time
-        thepast_shows.append(past_show_details)
-      else:
-        coming_show_details = {}
-        the_artist = Artist.query.filter_by(id=show.artist_id)
-        coming_show_details['artist_id'] = the_artist.id
-        coming_show_details['artist_name'] = the_artist.name
-        coming_show_details['artist_image_link'] = the_artist.image_link
-        coming_show_details['start_time'] = show.start_time
-        thecoming_shows.append(past_show_details)
+          thecoming_shows.append(coming_show_details)
   thevenue['past_shows'] = thepast_shows
   thevenue['upcoming_shows'] = thecoming_shows
   thevenue['past_shows_count'] = len(thepast_shows)
@@ -213,9 +192,11 @@ def create_venue_submission():
   venue = Venue()
   # TODO: modify data to be the data object returned from db insertion
   noerror = True
+  for f in form:
+    print(f.data)
   try:
     venue.name = form.name.data
-    venue.genres = form.genres.data
+    venue.genres = str(form.genres.data)
     venue.address = form.address.data
     venue.city = form.city.data
     venue.state = form.state.data
@@ -227,7 +208,8 @@ def create_venue_submission():
     venue.seeking_description = form.seeking_description.data
     db.session.add(venue)
     db.session.commit()
-  except:
+  except Exception as e:
+    print(e)
     noerror = False
     db.session.rollback()
   finally:
@@ -293,8 +275,8 @@ def search_artists():
       today = datetime.datetime.utcnow()
       count = 0
       show_list = Show.query.filter_by(venue_id=a.id)
-      if len(show_list) != 0:
-        if len(show_list) != 1:
+      if show_list.count() != 0:
+        if show_list.count() != 1:
           for show in show_list:
             showtime = datetime.datetime.fromisoformat(show.start_time)
             if showtime >= today:
@@ -320,7 +302,7 @@ def show_artist(artist_id):
   theartist = {}
   theartist['id'] = current_artist.id
   theartist['name'] = current_artist.name
-  theartist['genres'] = current_artist.genres
+  theartist['genres'] = current_artist.genres.replace('{', '').replace('}', '').split(',')
   theartist['address'] = current_artist.address
   theartist['city'] = current_artist.city
   theartist['state'] = current_artist.state
@@ -334,13 +316,13 @@ def show_artist(artist_id):
   show_list = Show.query.filter_by(artist_id=current_artist.id)
   thepast_shows = []
   thecoming_shows = []
-  if len(show_list) != 0:
-    if len(show_list) != 1:      
+  if show_list.count() != 0:
+    if show_list.count() >= 1:      
       for show in show_list:
         showtime = datetime.datetime.fromisoformat(show.start_time)
         if showtime < today:
           past_show_details = {}
-          the_venue = Venue.query.filter_by(id=show.venue_id)
+          the_venue = Venue.query.get(show.venue_id)
           past_show_details['venue_id'] = the_venue.id
           past_show_details['venue_name'] = the_venue.name
           past_show_details['venue_image_link'] = the_venue.image_link
@@ -348,30 +330,12 @@ def show_artist(artist_id):
           thepast_shows.append(past_show_details)
         elif showtime >= today:
           coming_show_details = {}
-          the_venue = Venue.query.filter_by(id=show.venue_id)
+          the_venue = Venue.query.get(show.venue_id)
           coming_show_details['venue_id'] = the_venue.id
           coming_show_details['venue_name'] = the_venue.name
           coming_show_details['venue_image_link'] = the_venue.image_link
           coming_show_details['start_time'] = show.start_time
-          thecoming_shows.append(past_show_details)
-    else:
-      showtime = datetime.datetime.fromisoformat(show.start_time)
-      if showtime < today:
-        past_show_details = {}
-        the_venue = Venue.query.filter_by(id=show.venue_id)
-        past_show_details['venue_id'] = the_venue.id
-        past_show_details['venue_name'] = the_venue.name
-        past_show_details['venue_image_link'] = the_venue.image_link
-        past_show_details['start_time'] = show.start_time
-        thepast_shows.append(past_show_details)
-      else:
-        coming_show_details = {}
-        the_venue = Venue.query.filter_by(id=show.venue_id)
-        coming_show_details['venue_id'] = the_venue.id
-        coming_show_details['venue_name'] = the_venue.name
-        coming_show_details['venue_image_link'] = the_venue.image_link
-        coming_show_details['start_time'] = show.start_time
-        thecoming_shows.append(past_show_details)
+          thecoming_shows.append(coming_show_details)
   theartist['past_shows'] = thepast_shows
   theartist['upcoming_shows'] = thecoming_shows
   theartist['past_shows_count'] = len(thepast_shows)
@@ -389,7 +353,7 @@ def edit_artist(artist_id):
   artist  = {}
   artist['id'] = theartist.id
   artist['name'] = theartist.name
-  artist['genres'] = theartist.genres
+  artist['genres'] = theartist.genres.replace('{', '').replace('}', '').split(',')
   artist['city'] = theartist.city
   artist['state'] = theartist.state
   artist['phone'] = theartist.phone
@@ -411,7 +375,6 @@ def edit_artist_submission(artist_id):
   try:
     artist.name = form.name.data
     artist.genres = form.genres.data
-    artist.address = form.address.data
     artist.city = form.city.data
     artist.state = form.state.data
     artist.phone = form.phone.data
@@ -441,13 +404,13 @@ def edit_venue(venue_id):
   venue  = {}
   venue['id'] = thevenue.id
   venue['name'] = thevenue.name
-  venue['genres'] = thevenue.genres
+  venue['genres'] = thevenue.genres.replace('{', '').replace('}', '').split(',')
   venue['city'] = thevenue.city
   venue['state'] = thevenue.state
   venue['phone'] = thevenue.phone
   venue['website'] = thevenue.website
   venue['facebook_link'] = thevenue.facebook_link
-  venue['seeking_venue'] = thevenue.seeking_venue
+  venue['seeking_talent'] = thevenue.seeking_talent
   venue['seeking_description'] = thevenue.seeking_description
   venue['image_link'] = thevenue.image_link
 
