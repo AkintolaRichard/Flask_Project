@@ -20,12 +20,12 @@ from sqlalchemy import select
 #----------------------------------------------------------------------------#
 from models import db, Venue, Artist, Show
 app = Flask(__name__)
-db.init_app(app)
+
 
 moment = Moment(app)
 app.config.from_object('config')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
+db.init_app(app)
 
 # TODO: connect to a local postgresql database
 migrate = Migrate(app, db)
@@ -67,15 +67,15 @@ def venues():
     each_city['city'] = city
     each_city['state'] = state
     thevenues = []
-    each_venue_in_city = {}
-    city_count = Venue.query.filter_by(city=city).count()
-    for i in range(city_count):
-      each_venue_in_city['id'] = id
-      each_venue_in_city['name'] = name
+    city_venues = db.session.query(Venue.id, Venue.name, Venue.city).filter(Venue.city==city)
+    for venueId, venueName, venueCity in city_venues:
+      each_venue_in_city = {}
+      each_venue_in_city['id'] = venueId
+      each_venue_in_city['name'] = venueName
       #num_upcoming_shows should be aggregated based on number of upcoming shows per venue.
       today = datetime.datetime.utcnow()
       count = 0
-      shows_list = Show.query.filter_by(venue_id=id)
+      shows_list = db.session.query(Show).filter(Show.venue_id==venueId)
       if shows_list.count() != 0:
         if shows_list.count() >= 1:
           for show in shows_list:
@@ -141,28 +141,27 @@ def show_venue(venue_id):
   thevenue['seeking_description'] = current_venue.seeking_description
   thevenue['image_link'] = current_venue.image_link
   today = datetime.datetime.utcnow()
-  show_list = Show.query.filter_by(venue_id=current_venue.id)
+  show_list = db.session.query(Artist.id, Artist.name, Artist.image_link, Show.start_time).join(Show).filter(Show.venue_id==current_venue.id)
+  #show_list = Show.query.filter_by(venue_id=current_venue.id)
   thepast_shows = []
   thecoming_shows = []
   if show_list.count() != 0:
     if show_list.count() >= 1:      
-      for show in show_list:
-        showtime = datetime.datetime.fromisoformat(show.start_time)
+      for artistId, artistName, artistImageLink, showStartTime in show_list:
+        showtime = datetime.datetime.fromisoformat(showStartTime)
         if showtime < today:
           past_show_details = {}
-          the_artist = Artist.query.get(show.artist_id)
-          past_show_details['artist_id'] = the_artist.id
-          past_show_details['artist_name'] = the_artist.name
-          past_show_details['artist_image_link'] = the_artist.image_link
-          past_show_details['start_time'] = show.start_time
+          past_show_details['artist_id'] = artistId
+          past_show_details['artist_name'] = artistName
+          past_show_details['artist_image_link'] = artistImageLink
+          past_show_details['start_time'] = showStartTime
           thepast_shows.append(past_show_details)
         elif showtime >= today:
           coming_show_details = {}
-          the_artist = Artist.query.get(show.artist_id)
-          coming_show_details['artist_id'] = the_artist.id
-          coming_show_details['artist_name'] = the_artist.name
-          coming_show_details['artist_image_link'] = the_artist.image_link
-          coming_show_details['start_time'] = show.start_time
+          coming_show_details['artist_id'] = artistId
+          coming_show_details['artist_name'] = artistName
+          coming_show_details['artist_image_link'] = artistImageLink
+          coming_show_details['start_time'] = showStartTime
           thecoming_shows.append(coming_show_details)
   thevenue['past_shows'] = thepast_shows
   thevenue['upcoming_shows'] = thecoming_shows

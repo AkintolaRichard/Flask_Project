@@ -6,7 +6,7 @@ db = SQLAlchemy()
 #----------------------------------------------------------------------------#
 
 class Venue(db.Model):
-    __tablename__ = 'Venue'
+    __tablename__ = 'venues'
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String)
@@ -24,7 +24,7 @@ class Venue(db.Model):
     seeking_description = db.Column(db.String(500))
 
 class Artist(db.Model):
-    __tablename__ = 'Artist'
+    __tablename__ = 'artists'
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String)
@@ -44,10 +44,10 @@ class Artist(db.Model):
 
 
 class Show (db.Model):
-    __tablename__ = 'Show'
+    __tablename__ = 'shows'
     id = db.Column(db.Integer, primary_key=True)
-    artist_id = db.Column(db.ForeignKey('Artist.id'))
-    venue_id = db.Column(db.ForeignKey('Venue.id'))
+    artist_id = db.Column(db.ForeignKey('artists.id'))
+    venue_id = db.Column(db.ForeignKey('venues.id'))
     start_time = db.Column(db.String())
     artists = db.relationship('Artist', backref=db.backref('artist', lazy=True))
     venues = db.relationship('Venue', backref=db.backref('venue', lazy=True))
